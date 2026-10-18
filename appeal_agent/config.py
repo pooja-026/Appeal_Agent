@@ -2,18 +2,14 @@
 
 from functools import lru_cache
 
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    """Runtime settings for the Appeal Agent backend.
+    """Runtime settings for the currently available analysis provider."""
 
-    Credentials are optional until inference is implemented.
-    """
-
-    nebius_api_key: str | None = None
-    nebius_base_url: str = "https://api.tokenfactory.nebius.com/v1/"
-    nebius_model: str | None = None
+    ai_provider: str = "mock"
 
     model_config = SettingsConfigDict(
         env_file=".env",
@@ -21,6 +17,16 @@ class Settings(BaseSettings):
         case_sensitive=False,
         extra="ignore",
     )
+
+    @field_validator("ai_provider")
+    @classmethod
+    def validate_provider(cls, value: str) -> str:
+        if value != "mock":
+            raise ValueError(
+                f"Unsupported AI_PROVIDER={value!r}; only 'mock' is available "
+                "until a live provider is selected."
+            )
+        return value
 
 
 @lru_cache
