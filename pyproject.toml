@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools>=75,<81"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "appeal-agent"
+version = "0.1.0"
+description = "Evidence-grounded appeal preparation backend."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { file = "LICENSE" }
+authors = [{ name = "Appeal Agent contributors" }]
+dependencies = [
+    "fastapi>=0.115,<1",
+    "pydantic-settings>=2.7,<3",
+    "python-dotenv>=1.0,<2",
+    "uvicorn[standard]>=0.34,<1",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.3,<9",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.setuptools.packages.find]
+include = ["appeal_agent*"]
