@@ -112,6 +112,28 @@ class DocumentedDeadline(BaseModel):
     date: date_type | None = None
 
 
+class ExtractionFormat(StrEnum):
+    PDF = "pdf"
+    TEXT = "txt"
+
+
+class ExtractionMetadata(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    format: ExtractionFormat
+    page_count: int = Field(ge=1)
+    character_count: int = Field(ge=1)
+    passage_count: int = Field(ge=1)
+
+
+class DocumentExtractionResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    document: Document
+    metadata: ExtractionMetadata
+    warnings: list[str]
+
+
 class Analysis(BaseModel):
     model_config = ConfigDict(extra="forbid")
 

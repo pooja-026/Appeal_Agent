@@ -22,6 +22,10 @@ htmlcov/
 dist/
 build/
 
+# Frontend dependencies and caches
+node_modules/
+.vite/
+
 # User-provided uploads
 uploads/
 user_uploads/

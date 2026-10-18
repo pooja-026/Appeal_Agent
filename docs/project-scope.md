@@ -27,7 +27,10 @@ This milestone includes:
 - A vendor-neutral analysis-provider interface and deterministic `MockAnalysisProvider`.
 - Source-reference validation for findings, policy clauses, and documented deadlines.
 - Local sample-case and analysis APIs.
-- Focused offline tests.
+- Bounded local extraction for UTF-8 text and text-based PDFs, with stable source passages and page references.
+- A React/TypeScript/Vite frontend with separate fictional-sample and local-document review flows.
+- Typed frontend API integration through a local Vite proxy, evidence navigation, upload warnings, and in-memory session state.
+- Focused offline backend and frontend tests.
 
 Analysis is currently simulated. The only supported configuration is `AI_PROVIDER=mock`; responses explicitly identify `provider="mock"` and `simulated=true`. The mock provider accepts only the unchanged authored sample cases and makes no external requests.
 
@@ -46,13 +49,18 @@ Analysis is currently simulated. The only supported configuration is `AI_PROVIDE
 ## Explicitly out of scope for this milestone
 
 - Live model providers or vendor SDKs.
-- Document upload parsing, OCR, or retrieval.
-- Frontend or review UI.
+- OCR or retrieval.
 - Appeal drafting.
 - Authentication, database, persistence, deployment, or cloud resources.
 - Insurance appeals, bank chargebacks, legal advice, and automatic submission.
 - Multi-agent orchestration.
 
+## Document extraction limitations
+
+PDF extraction uses `pypdf` locally and may produce reading-order errors for tables and multi-column layouts. It does not reproduce visual layout perfectly. Empty-text pages are warnings rather than proof that OCR is needed, and OCR is not implemented. Uploaded originals are processed in bounded memory and are not retained by the application.
+
+The 10 MiB upload, 30-page PDF, and 100,000-character extracted-text limits prevent unbounded normal inputs but do not make PDF parsing fully secure. Public deployment will require process isolation, timeouts, stronger resource controls, and security review.
+
 ## Next milestone
 
-Build document ingestion and a review interface. After that, select and integrate a live model provider as a separate decision with explicit configuration and tests.
+Improve document ingestion and the review interface, then select and integrate a live model provider as a separate decision with explicit configuration and tests. Uploaded documents remain extraction-only until that provider boundary is deliberately extended.

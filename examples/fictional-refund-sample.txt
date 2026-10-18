@@ -1,0 +1,7 @@
+FICTIONAL SAMPLE — NOT A REAL CUSTOMER CASE
+
+Customer: Elena Ortiz
+Retailer: Harbor & Finch
+Order: HF-2048
+
+I received the blue desk organizer with a cracked lid. I contacted Harbor & Finch support and asked for a refund. This example is intentionally fictional and is provided only for local extraction testing.
