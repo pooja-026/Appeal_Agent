@@ -11,9 +11,13 @@ from .ingestion import extract_document, read_upload_limited
 from .models import (
     Analysis,
     Case,
+    DraftRequest,
+    DraftResponse,
+    DraftType,
     DocumentExtractionResponse,
     DocumentType,
     SampleCaseSummary,
+    UsageMetadata,
 )
 from .providers import (
     AnalysisProviderError,
@@ -21,7 +25,7 @@ from .providers import (
     MockAnalysisProvider,
     MockAnalysisUnavailable,
 )
-from .references import InvalidSourceReference
+from .references import InvalidSourceReference, case_fingerprint, validate_analysis_references, validate_draft_references
 from .ingestion import ExtractionProblem
 
 router = APIRouter()
@@ -74,6 +78,11 @@ def analyze_case(case: Case) -> Analysis:
             status_code=422,
             detail={"code": "mock_analysis_unavailable", "message": str(exc)},
         ) from exc
+    except InvalidSourceReference as exc:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Analysis provider returned invalid source references",
+        ) from exc
 
 
 @router.get("/analysis/config", tags=["analysis"])
@@ -103,19 +112,108 @@ async def live_analyze_case(case: Case) -> Analysis:
             detail={"code": "live_analysis_not_enabled", "message": "Live analysis is not enabled."},
         )
     try:
-        return await _run_provider(AnthropicAnalysisProvider(settings), case)
+        analysis = await _run_provider(AnthropicAnalysisProvider(settings), case)
+        return analysis.model_copy(update={"case_fingerprint": case_fingerprint(case)})
     except AnalysisProviderError as exc:
         raise HTTPException(
             status_code=exc.status_code,
             detail={"code": exc.code, "message": str(exc)},
         ) from None
-    except InvalidSourceReference as exc:
+
+
+@router.post(
+    "/drafts",
+    response_model=DraftResponse,
+    tags=["drafts"],
+    summary="Generate a user-reviewed reconsideration or clarification draft",
+    description=(
+        "Drafting is explicit and sends the current documents and reviewed analysis to Anthropic. "
+        "The result is kept in memory only; nothing is sent to a retailer."
+    ),
+)
+async def generate_draft(request: DraftRequest) -> DraftResponse:
+    settings = get_settings()
+    if settings.ai_provider != "anthropic":
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Analysis provider returned invalid source references",
-        ) from exc
+            status_code=status.HTTP_409_CONFLICT,
+            detail={"code": "live_analysis_not_enabled", "message": "Live drafting is not enabled."},
+        )
 
+    analysis = request.analysis
+    current_fingerprint = case_fingerprint(request.case)
+    if analysis.provider != "anthropic" or analysis.simulated:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail={"code": "live_analysis_required", "message": "Drafting requires a successful live analysis."},
+        )
+    if not request.reviewed_findings:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail={"code": "review_confirmation_required", "message": "Confirm that you reviewed the findings against your documents before drafting."},
+        )
+    if analysis.case_id != request.case.case_id or analysis.case_fingerprint != current_fingerprint:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={"code": "stale_analysis", "message": "The analysis does not match the current document version."},
+        )
+    try:
+        validate_analysis_references(request.case, analysis)
+    except InvalidSourceReference:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail={"code": "invalid_analysis_citation", "message": "The supplied analysis contains an invalid source reference."},
+        ) from None
 
+    if analysis.assessment.value == "potentially_supported":
+        expected_type = DraftType.RECONSIDERATION_REQUEST
+    elif analysis.assessment.value == "insufficient_evidence":
+        expected_type = DraftType.CLARIFICATION_REQUEST
+    else:
+        if not request.goodwill_requested:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail={"code": "goodwill_choice_required", "message": "Choose the explicitly labeled goodwill request option before drafting."},
+            )
+        expected_type = DraftType.GOODWILL_REQUEST
+
+    provider = AnthropicAnalysisProvider(settings)
+    try:
+        content = await provider.generate_draft(
+            request.case,
+            analysis,
+            name=request.name,
+            desired_outcome=request.desired_outcome,
+            draft_type=expected_type,
+        )
+        usage = provider.last_usage
+        if usage is None:
+            raise AnalysisProviderError("Draft usage was unavailable.", code="usage_unavailable")
+        draft = DraftResponse(
+            case_id=request.case.case_id,
+            case_fingerprint=current_fingerprint,
+            **content.model_dump(),
+            provider="anthropic",
+            simulated=False,
+            model=settings.anthropic_model,
+            usage=UsageMetadata(
+                input_tokens=usage.input_tokens,
+                output_tokens=usage.output_tokens,
+                estimated_cost_usd=usage.estimated_cost_usd,
+                status=usage.status,
+            ),
+        )
+        validate_draft_references(request.case, draft)
+        return draft
+    except AnalysisProviderError as exc:
+        raise HTTPException(
+            status_code=exc.status_code,
+            detail={"code": exc.code, "message": str(exc)},
+        ) from None
+    except InvalidSourceReference:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail={"code": "invalid_draft_citation", "message": "The draft contained an invalid source reference."},
+        ) from None
 @router.post(
     "/documents/extract",
     response_model=DocumentExtractionResponse,

@@ -149,6 +149,7 @@ class Analysis(BaseModel):
     provider: str = Field(min_length=1)
     simulated: bool
     model: str | None = None
+    case_fingerprint: str | None = None
 
 
 class AnalysisContent(BaseModel):
@@ -164,6 +165,91 @@ class AnalysisContent(BaseModel):
     assessment: Assessment
     explanation: str = Field(min_length=1)
     documented_deadline: DocumentedDeadline | None = None
+
+
+class DesiredOutcome(StrEnum):
+    REFUND = "refund"
+    REPLACEMENT = "replacement"
+    EITHER = "either"
+
+
+class DraftType(StrEnum):
+    RECONSIDERATION_REQUEST = "reconsideration_request"
+    CLARIFICATION_REQUEST = "clarification_request"
+    GOODWILL_REQUEST = "goodwill_request"
+
+
+class UsageMetadata(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    input_tokens: int | None = Field(default=None, ge=0)
+    output_tokens: int | None = Field(default=None, ge=0)
+    estimated_cost_usd: float | None = Field(default=None, ge=0)
+    status: str = Field(min_length=1)
+
+
+class DraftParagraph(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    paragraph_id: str = Field(min_length=1)
+    text: str = Field(min_length=1)
+    sources: list[SourceReference]
+
+
+class EvidenceChecklistItem(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    item: str = Field(min_length=1)
+    why_consider: str = Field(min_length=1)
+
+
+class DraftContent(BaseModel):
+    """Model-generated draft fields, excluding application-owned metadata."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    draft_type: DraftType
+    subject: str = Field(min_length=1)
+    recipient_name: str | None = Field(default=None, max_length=200)
+    recipient_source: SourceReference | None = None
+    paragraphs: list[DraftParagraph] = Field(min_length=1)
+    evidence_checklist: list[EvidenceChecklistItem]
+    confirmation_items: list[str]
+
+    @model_validator(mode="after")
+    def recipient_must_have_source(self) -> "DraftContent":
+        if (self.recipient_name is None) != (self.recipient_source is None):
+            raise ValueError("recipient_name and recipient_source must be provided together")
+        return self
+
+
+class DraftRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    case: Case
+    analysis: Analysis
+    name: str | None = Field(default=None, max_length=120)
+    desired_outcome: DesiredOutcome
+    reviewed_findings: bool
+    goodwill_requested: bool = False
+
+
+class DraftResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    case_id: str = Field(min_length=1)
+    case_fingerprint: str = Field(min_length=64, max_length=64)
+    draft_type: DraftType
+    subject: str = Field(min_length=1)
+    recipient_name: str | None = Field(default=None, max_length=200)
+    recipient_source: SourceReference | None = None
+    paragraphs: list[DraftParagraph] = Field(min_length=1)
+    evidence_checklist: list[EvidenceChecklistItem]
+    confirmation_items: list[str]
+    provider: str = Field(min_length=1)
+    simulated: bool
+    model: str | None = None
+    usage: UsageMetadata
 
 
 class SampleCaseSummary(BaseModel):

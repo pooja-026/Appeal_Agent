@@ -48,7 +48,7 @@ def _provider(messages: FakeMessages, **overrides: object) -> AnthropicAnalysisP
 async def test_valid_structured_response_is_validated_and_tagged() -> None:
     case = SAMPLE_CASES["case-a-damaged-sale"]
     expected = EXPECTED_ANALYSES[case.case_id].model_dump(
-        mode="json", exclude={"case_id", "provider", "simulated", "model"}
+        mode="json", exclude={"case_id", "provider", "simulated", "model", "case_fingerprint"}
     )
     messages = FakeMessages(_response(AnalysisContent.model_validate(expected).model_dump_json()))
 
@@ -65,7 +65,7 @@ async def test_valid_structured_response_is_validated_and_tagged() -> None:
 async def test_fabricated_citation_is_rejected_without_success() -> None:
     case = SAMPLE_CASES["case-a-damaged-sale"]
     expected = EXPECTED_ANALYSES[case.case_id].model_dump(
-        mode="json", exclude={"case_id", "provider", "simulated", "model"}
+        mode="json", exclude={"case_id", "provider", "simulated", "model", "case_fingerprint"}
     )
     expected["findings"][0]["sources"][0]["quoted_text"] = "invented quote"
     messages = FakeMessages(_response(AnalysisContent.model_validate(expected).model_dump_json()))

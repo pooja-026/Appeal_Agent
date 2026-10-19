@@ -36,6 +36,7 @@ This checklist is for local manual evaluation only. It is separate from the fict
 - [ ] Findings do not repeat the same conclusion across multiple sections without adding distinct information.
 - [ ] Reporting windows remain separate from reconsideration or appeal deadlines.
 - [ ] The analysis does not promise a particular remedy when the policy allows alternatives.
+- [ ] Any date comparison or calculation cites every premise, including each relevant delivery, report, or policy-window passage; quotation validation confirms source existence but cannot prove semantic completeness.
 
 These are human-review expectations for live model quality. The offline mocked-provider tests validate plumbing, schema handling, and citation checks; they do not prove that a live model follows these semantic expectations.
 

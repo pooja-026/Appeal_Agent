@@ -117,6 +117,25 @@ input[type="file"], input[type="text"], input:not([type]), select { width: 100%;
 .dialog-heading h2 { margin-bottom: 8px; }
 .close-button { align-self: start; border: 0; background: transparent; color: #5f716d; font-size: 1.8rem; line-height: 1; }
 blockquote { border-left: 3px solid #75bdb4; color: #314b48; font-size: 1.05rem; margin: 25px 0; padding: 14px 18px; white-space: pre-wrap; }
+.draft-controls, .draft-editor { border: 1px solid #b9ddd7; border-radius: 12px; background: #f2fbf9; margin-top: 24px; padding: 22px; }
+.draft-controls h2, .draft-editor h2 { font-size: 1.3rem; margin-bottom: 9px; }
+.draft-controls > p:not(.eyebrow), .draft-editor .muted { color: #405754; }
+.checkbox-row { align-items: flex-start; color: #31504d; display: flex; gap: 9px; margin: 18px 0; }
+.checkbox-row input { margin-top: 4px; }
+.goodwill-choice { border-left: 3px solid #e5b74c; background: #fff9e7; padding: 10px 12px; }
+.draft-editor { background: white; border-color: #d9e0dc; }
+.draft-heading { align-items: flex-start; display: flex; gap: 18px; justify-content: space-between; }
+.edited-label { color: #9a5a21; font-size: .82rem; font-weight: 750; }
+.draft-field { color: #31504d; display: grid; font-size: .88rem; font-weight: 750; gap: 8px; margin: 18px 0; }
+.draft-field input, .draft-field textarea { border: 1px solid #bac9c5; border-radius: 8px; background: white; color: #183231; font: inherit; font-weight: 450; line-height: 1.55; padding: 11px 12px; }
+.draft-field textarea { min-height: 100px; resize: vertical; white-space: pre-wrap; }
+.draft-actions { align-items: center; display: flex; flex-wrap: wrap; gap: 12px; margin-top: 20px; }
+.secondary-button { border: 1px solid #4da79d; border-radius: 9px; background: white; color: #0e766e; font-weight: 750; padding: 11px 17px; }
+.secondary-button:hover { background: #f2fbf9; }
+.primary-button:disabled, .secondary-button:disabled, .text-button:disabled { cursor: not-allowed; opacity: .55; }
+.status-inline { color: #236b63; font-size: .85rem; }
+.draft-evidence { margin-top: 25px; }
+.draft-evidence-item { border-left: 2px solid #56aaa0; margin: 14px 0; padding: 2px 0 2px 15px; }
 
 @media (max-width: 700px) {
   .site-header { align-items: flex-start; gap: 14px; padding: 21px 20px; }

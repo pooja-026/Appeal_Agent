@@ -31,6 +31,8 @@ This milestone includes:
 - A React/TypeScript/Vite frontend with separate fictional-sample and local-document review flows.
 - Typed frontend API integration through a local Vite proxy, evidence navigation, upload warnings, and in-memory session state.
 - A live-analysis route that performs one bounded Anthropic Messages API request with structured JSON output, token counting, cost checks, and citation validation.
+- An explicit post-analysis drafting route that derives an allowed draft type from the assessment, revalidates the exact case fingerprint and citations, and returns a structured response draft with paragraph evidence, checklist items, and usage metadata.
+- A frontend drafting review with required user confirmation, optional name and requested remedy, in-memory editing, reset, copy, and UTF-8 TXT download. Draft evidence always refers to the original generated paragraphs; it is not presented as validation for later edits.
 - Focused offline backend and frontend tests using mocked SDK responses; no test makes a paid call.
 
 Sample analysis remains simulated and always uses the mock provider. Uploaded documents can use Anthropic only when `AI_PROVIDER=anthropic`, `ANTHROPIC_API_KEY`, and an explicit `ANTHROPIC_MODEL` are configured. Live results explicitly identify `provider="anthropic"` and `simulated=false`; failures never fall back to fixture findings.
@@ -44,6 +46,7 @@ Sample analysis remains simulated and always uses the mock provider. Uploaded do
 - Missing evidence must remain unknown and produce targeted follow-up questions.
 - Source checks prove that a quotation exists, not that an interpretation is correct.
 - Users review and submit responses themselves.
+- Drafts are user-reviewed only; the application does not send, email, or automatically submit them.
 - There is no automatic submission or promise of a successful appeal.
 - Development fixtures are clearly labeled fictional documents, not real customer cases.
 
@@ -51,7 +54,7 @@ Sample analysis remains simulated and always uses the mock provider. Uploaded do
 
 - Additional live model providers, model downloads, paid tools, prompt caching, and multi-model routing.
 - OCR or retrieval.
-- Appeal drafting.
+- Automatic appeal submission, emailing, and PDF export.
 - Authentication, database, persistence, deployment, or cloud resources.
 - Insurance appeals, bank chargebacks, legal advice, and automatic submission.
 - Multi-agent orchestration.
@@ -62,9 +65,13 @@ PDF extraction uses `pypdf` locally and may produce reading-order errors for tab
 
 The 10 MiB upload, 30-page PDF, and 100,000-character extracted-text limits prevent unbounded normal inputs but do not make PDF parsing fully secure. Public deployment will require process isolation, timeouts, stronger resource controls, and security review.
 
+## Drafting safeguards
+
+The drafting request includes the original source passages and the already reviewed analysis as untrusted content. The server revalidates the analysis citations, compares its SHA-256 fingerprint with the current case, and derives the permitted draft type in application code: reconsideration request for potentially supported cases, clarification request for insufficient evidence, or an explicitly selected goodwill request for no supported basis. A matching fingerprint proves only that the submitted case representation is unchanged; it does not prove analysis authenticity or semantic correctness. Reference checks prove that quoted text exists, not that the model's interpretation is correct. Name, remedy, document, and analysis changes make a generated draft outdated in the browser.
+
 ## Next milestone
 
-Improve document ingestion and the review interface, then add appeal drafting only after a user-reviewed analysis. A separately selected live provider may replace or supplement Anthropic later.
+Next work can improve document ingestion and the review interface, then evaluate the drafting experience with additional offline fixtures and human review. A separately selected live provider may replace or supplement Anthropic later.
 
 ## Anthropic integration limitations
 

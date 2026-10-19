@@ -1,8 +1,10 @@
 """Source-reference validation for evidence-grounded analyses."""
 
+import hashlib
+import json
 import re
 
-from .models import Analysis, Case, SourceReference
+from .models import Analysis, Case, DraftResponse, SourceReference
 
 
 class InvalidSourceReference(ValueError):
@@ -11,6 +13,18 @@ class InvalidSourceReference(ValueError):
 
 def _normalize_whitespace(value: str) -> str:
     return re.sub(r"\s+", " ", value).strip()
+
+
+def case_fingerprint(case: Case) -> str:
+    """Return a stable digest for this exact structured document version."""
+
+    canonical = json.dumps(
+        case.model_dump(mode="json"),
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    return hashlib.sha256(canonical).hexdigest()
 
 
 def validate_source_reference(case: Case, reference: SourceReference) -> None:
@@ -60,3 +74,18 @@ def validate_analysis_references(case: Case, analysis: Analysis) -> Analysis:
     if analysis.documented_deadline is not None:
         validate_source_reference(case, analysis.documented_deadline.source)
     return analysis
+
+
+def validate_draft_references(case: Case, draft: DraftResponse) -> DraftResponse:
+    """Validate every source attached to a generated draft paragraph."""
+
+    if draft.case_id != case.case_id:
+        raise InvalidSourceReference(
+            f"Draft case ID {draft.case_id!r} does not match {case.case_id!r}"
+        )
+    for paragraph in draft.paragraphs:
+        for source in paragraph.sources:
+            validate_source_reference(case, source)
+    if draft.recipient_source is not None:
+        validate_source_reference(case, draft.recipient_source)
+    return draft

@@ -1,6 +1,6 @@
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import App from "./App";
+import App, { formatDraftText } from "./App";
 
 const sampleCase = {
   case_id: "case-a-damaged-sale",
@@ -40,6 +40,14 @@ afterEach(() => {
 });
 
 describe("Appeal Agent frontend", () => {
+  it("formats the current edited draft content for copy and TXT export", () => {
+    expect(formatDraftText("Request for review", ["First edited paragraph.", "Second edited paragraph."], "Pooja", "Cedar & Finch")).toBe(
+      "Subject: Request for review\n\nDear Cedar & Finch,\n\nFirst edited paragraph.\n\nSecond edited paragraph.\n\nSincerely,\nPooja",
+    );
+    expect(formatDraftText("Request for review", ["Body."], "")).toContain("Dear Customer Service Team,");
+    expect(formatDraftText("Request for review", ["Body."], "")).toContain("Sincerely,\n[Your name]");
+  });
+
   it("renders a sample, shows simulated findings, and opens cited evidence", async () => {
     vi.spyOn(globalThis, "fetch").mockImplementation((input) => {
       const url = String(input);
@@ -55,6 +63,7 @@ describe("Appeal Agent frontend", () => {
     await screen.findByText(/Selected example/i);
     fireEvent.click(screen.getByRole("button", { name: /show example findings/i }));
     await screen.findByText(/Fictional example — simulated findings/i);
+    expect(screen.getByText(/No deadline was identified in this analysis/i)).toBeInTheDocument();
     fireEvent.click(screen.getAllByRole("button", { name: /view evidence/i }).at(-1)!);
     expect(await screen.findByRole("dialog")).toHaveTextContent("including items purchased at a sale price");
   });
@@ -174,7 +183,23 @@ describe("Appeal Agent frontend", () => {
       provider: "anthropic",
       simulated: false,
       model: "claude-sonnet-5-5",
+      case_fingerprint: "a".repeat(64),
       findings: [{ classification: "documented_fact", statement: "The denial is documented.", sources: [{ document_id: "live-denial", passage_id: "live-denial-p1", quoted_text: "The request was denied." }] }],
+    };
+    const draftResult = {
+      case_id: "uploaded-local-session",
+      case_fingerprint: "a".repeat(64),
+      draft_type: "reconsideration_request",
+      subject: "Request for review",
+      recipient_name: "Cedar & Finch",
+      recipient_source: { document_id: "live-denial", passage_id: "live-denial-p1", quoted_text: "The request was denied." },
+      paragraphs: [{ paragraph_id: "paragraph-1", text: "Please review the supplied records.", sources: [{ document_id: "live-denial", passage_id: "live-denial-p1", quoted_text: "The request was denied." }] }],
+      evidence_checklist: [{ item: "Order record", why_consider: "It may help the retailer locate the request." }],
+      confirmation_items: ["Confirm the requested remedy before sending."],
+      provider: "anthropic",
+      simulated: false,
+      model: "claude-sonnet-5-5",
+      usage: { input_tokens: 100, output_tokens: 200, estimated_cost_usd: 0.01, status: "received" },
     };
     let extractionCount = 0;
     const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation((input) => {
@@ -182,6 +207,7 @@ describe("Appeal Agent frontend", () => {
       if (url.endsWith("/analysis/config")) return jsonResponse({ provider: "anthropic", live_analysis_configured: true });
       if (url.endsWith("/documents/extract")) return jsonResponse(extractionCount++ === 0 ? denial : policy);
       if (url.endsWith("/live-analysis")) return jsonResponse(liveResult);
+      if (url.endsWith("/drafts")) return jsonResponse(draftResult);
       return jsonResponse({});
     });
 
@@ -196,6 +222,15 @@ describe("Appeal Agent frontend", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /analyze my documents/i }));
     expect(await screen.findByText(/AI-generated analysis/i)).toBeInTheDocument();
+    const draftButton = screen.getByRole("button", { name: /generate response draft/i });
+    expect(draftButton).toBeDisabled();
+    fireEvent.click(screen.getByLabelText(/I have reviewed the findings/i));
+    fireEvent.click(draftButton);
+    expect(await screen.findByDisplayValue("Request for review")).toBeInTheDocument();
+    fireEvent.change(screen.getByDisplayValue("Please review the supplied records."), { target: { value: "Edited wording for my review." } });
+    expect(screen.getByText(/Edited by you — changes have not been checked/i)).toBeInTheDocument();
+    fireEvent.click(screen.getByText(/View supporting evidence/i));
+    expect(screen.getByText(/These references belong to the original generated draft/i)).toBeInTheDocument();
     expect(fetchSpy.mock.calls.some(([request]) => String(request).endsWith("/live-analysis"))).toBe(true);
     fireEvent.click(screen.getAllByRole("button", { name: /view evidence/i }).at(-1)!);
     expect(await screen.findByRole("dialog")).toHaveTextContent("The request was denied.");

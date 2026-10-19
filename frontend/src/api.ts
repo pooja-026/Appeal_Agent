@@ -1,6 +1,8 @@
 export type DocumentType = "denial" | "policy" | "receipt" | "correspondence" | "other";
 export type Assessment = "potentially_supported" | "insufficient_evidence" | "no_supported_basis";
 export type FindingClassification = "documented_fact" | "interpretation";
+export type DesiredOutcome = "refund" | "replacement" | "either";
+export type DraftType = "reconsideration_request" | "clarification_request" | "goodwill_request";
 
 export interface Passage {
   passage_id: string;
@@ -69,6 +71,29 @@ export interface Analysis {
   provider: string;
   simulated: boolean;
   model: string | null;
+  case_fingerprint: string | null;
+}
+
+export interface DraftParagraph {
+  paragraph_id: string;
+  text: string;
+  sources: SourceReference[];
+}
+
+export interface DraftResponse {
+  case_id: string;
+  case_fingerprint: string;
+  draft_type: DraftType;
+  subject: string;
+  recipient_name: string | null;
+  recipient_source: SourceReference | null;
+  paragraphs: DraftParagraph[];
+  evidence_checklist: { item: string; why_consider: string }[];
+  confirmation_items: string[];
+  provider: string;
+  simulated: boolean;
+  model: string | null;
+  usage: { input_tokens: number | null; output_tokens: number | null; estimated_cost_usd: number | null; status: string };
 }
 
 export interface AnalysisConfig {
@@ -120,6 +145,11 @@ export const api = {
   }),
   getAnalysisConfig: () => request<AnalysisConfig>("/analysis/config"),
   analyzeLive: (value: Case) => request<Analysis>("/live-analysis", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(value),
+  }),
+  generateDraft: (value: { case: Case; analysis: Analysis; name: string; desired_outcome: DesiredOutcome; goodwill_requested: boolean; reviewed_findings: boolean }) => request<DraftResponse>("/drafts", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(value),
