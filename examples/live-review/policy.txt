@@ -1,0 +1,16 @@
+FICTIONAL TEST POLICY — FOR DEVELOPMENT ONLY
+
+Change-of-mind returns:
+Sale-priced items cannot be returned solely because the customer changed their mind.
+
+Damaged items:
+Customers must report damage within 14 calendar days after delivery. Sale-priced items are eligible under this damaged-item policy.
+
+Required evidence:
+Customers must provide the order number and photographs showing the damage.
+
+Resolution:
+After reviewing the submitted evidence and confirming that the item arrived damaged, the retailer will offer a replacement or refund.
+
+Reconsideration:
+Customers may reply to the denial message to request reconsideration. This policy does not specify a separate reconsideration deadline.

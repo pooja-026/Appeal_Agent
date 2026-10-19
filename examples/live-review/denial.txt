@@ -1,0 +1,12 @@
+FICTIONAL TEST CASE — NOT A REAL CUSTOMER RECORD
+Retailer: Cedar & Finch
+Order: CF-1042
+Product: Ceramic desk lamp
+Purchase price: $48
+Delivered: October 2, 2026
+
+Customer message, October 4, 2026:
+The lamp arrived with a cracked base. I am requesting a refund and have attached photographs of the damage.
+
+Retailer response, October 5, 2026:
+Your refund request is denied because this item was purchased on sale.

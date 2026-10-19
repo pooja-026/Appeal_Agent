@@ -29,8 +29,21 @@ function App() {
   const [uploadWarnings, setUploadWarnings] = useState<Record<string, string[]>>({});
   const [uploadError, setUploadError] = useState("");
   const [uploading, setUploading] = useState(false);
+  const [liveConfigured, setLiveConfigured] = useState(false);
+  const [liveAnalysis, setLiveAnalysis] = useState<Analysis | null>(null);
+  const [liveAnalyzing, setLiveAnalyzing] = useState(false);
   const [evidence, setEvidence] = useState<{ document: SourceDocument; passage: Passage } | null>(null);
   const sampleRequest = useRef(0);
+  const liveRequest = useRef(0);
+
+  useEffect(() => {
+    if (screen !== "uploads") return;
+    let active = true;
+    api.getAnalysisConfig()
+      .then((config) => { if (active) setLiveConfigured(config.live_analysis_configured); })
+      .catch(() => { if (active) setLiveConfigured(false); });
+    return () => { active = false; };
+  }, [screen]);
 
   useEffect(() => {
     if (screen !== "examples" || sampleCases.length > 0) return;
@@ -76,9 +89,11 @@ function App() {
   };
 
   const clearWorkspace = () => {
+    ++liveRequest.current;
     setUploadDocuments([]);
     setUploadWarnings({});
     setUploadError("");
+    setLiveAnalysis(null);
   };
 
   const uploadDocument = async (file: File, type: DocumentType, title: string) => {
@@ -99,11 +114,37 @@ function App() {
         return [...current, result.document];
       });
       setUploadWarnings((current) => ({ ...current, [result.document.document_id]: result.warnings }));
+      setLiveAnalysis(null);
+      ++liveRequest.current;
     } catch (error: unknown) {
       setUploadError(toMessage(error));
     } finally {
       setUploading(false);
     }
+  };
+
+  const analyzeUploadedDocuments = () => {
+    if (!liveConfigured || uploadDocuments.length === 0 || liveAnalyzing) return;
+    const hasDenial = uploadDocuments.some((document) => document.document_type === "denial");
+    const hasPolicy = uploadDocuments.some((document) => document.document_type === "policy");
+    if (!hasDenial || !hasPolicy) {
+      setUploadError("Add at least one denial and one retailer policy document before analysis.");
+      return;
+    }
+    const requestId = ++liveRequest.current;
+    const casePayload: Case = {
+      case_id: "uploaded-local-session",
+      title: "Uploaded documents",
+      created_at: new Date().toISOString(),
+      documents: uploadDocuments,
+    };
+    setLiveAnalyzing(true);
+    setLiveAnalysis(null);
+    setUploadError("");
+    api.analyzeLive(casePayload)
+      .then((value) => { if (requestId === liveRequest.current) setLiveAnalysis(value); })
+      .catch((error: unknown) => { if (requestId === liveRequest.current) setUploadError(toMessage(error)); })
+      .finally(() => { if (requestId === liveRequest.current) setLiveAnalyzing(false); });
   };
 
   return (
@@ -138,10 +179,14 @@ function App() {
             warnings={uploadWarnings}
             error={uploadError}
             uploading={uploading}
+            liveConfigured={liveConfigured}
+            liveAnalysis={liveAnalysis}
+            liveAnalyzing={liveAnalyzing}
             onBack={() => setScreen("home")}
             onUpload={uploadDocument}
-            onRemove={(id) => setUploadDocuments((items) => items.filter((item) => item.document_id !== id))}
+            onRemove={(id) => { ++liveRequest.current; setUploadDocuments((items) => items.filter((item) => item.document_id !== id)); setLiveAnalysis(null); }}
             onClear={clearWorkspace}
+            onAnalyze={analyzeUploadedDocuments}
             onEvidence={setEvidence}
           />
         )}
@@ -164,7 +209,7 @@ function Home({ onExamples, onUploads }: { onExamples: () => void; onUploads: ()
       </div>
       <div className="choice-grid">
         <ChoiceCard number="01" title="Try an example" description="Explore a fictional case with prepared example findings." onClick={onExamples} />
-        <ChoiceCard number="02" title="Review my documents" description="Upload a PDF or text file and check its extracted text. Analysis for your documents is not available yet." onClick={onUploads} />
+        <ChoiceCard number="02" title="Review my documents" description="Upload a PDF or text file and check its extracted text. Live analysis appears only when the backend is explicitly configured." onClick={onUploads} />
       </div>
     </section>
   );
@@ -197,22 +242,23 @@ function ExampleView(props: {
       <div className="case-intro"><p className="eyebrow">Selected example</p><h2>{props.selected.title}</h2><p>Read the supplied source documents first, then view the simulated findings.</p></div>
       <SourceDocuments documents={props.selected.documents} onEvidence={props.onEvidence} />
       <button className="primary-button" onClick={props.onShowFindings} disabled={props.loading}>{props.loading ? "Preparing findings…" : "Show example findings"}</button>
-      {props.analysis && <AnalysisView analysis={props.analysis} documents={props.selected.documents} onEvidence={props.onEvidence} />}
+      {props.analysis && <AnalysisView analysis={props.analysis} documents={props.selected.documents} onEvidence={props.onEvidence} simulated />}
     </div>}
   </section>;
 }
 
 function UploadView(props: {
   documents: SourceDocument[]; warnings: Record<string, string[]>; error: string; uploading: boolean;
+  liveConfigured: boolean; liveAnalysis: Analysis | null; liveAnalyzing: boolean;
   onBack: () => void; onUpload: (file: File, type: DocumentType, title: string) => Promise<void>;
-  onRemove: (id: string) => void; onClear: () => void; onEvidence: (evidence: { document: SourceDocument; passage: Passage }) => void;
+  onRemove: (id: string) => void; onClear: () => void; onAnalyze: () => void; onEvidence: (evidence: { document: SourceDocument; passage: Passage }) => void;
 }) {
   const [type, setType] = useState<DocumentType>("other");
   const [title, setTitle] = useState("");
   const fileInputId = "document-file";
   return <section className="workspace" aria-labelledby="uploads-title">
     <button className="back-link" onClick={props.onBack}>← Back to start</button>
-    <div className="section-heading"><p className="eyebrow">Your documents</p><h1 id="uploads-title">Review extracted text</h1><p>Upload up to five PDF or UTF-8 text documents. They are processed locally for this session and are not analyzed yet.</p></div>
+    <div className="section-heading"><p className="eyebrow">Your documents</p><h1 id="uploads-title">Review extracted text</h1><p>Upload up to five PDF or UTF-8 text documents. Extraction happens locally through this app; analysis, when enabled, sends the extracted text to Anthropic.</p></div>
     <div className="upload-card">
       <div className="field-row">
         <label htmlFor={fileInputId}>Document file <span className="field-hint">PDF or TXT</span></label>
@@ -228,7 +274,7 @@ function UploadView(props: {
     </div>
     {props.uploading && <StatusMessage>Extracting text…</StatusMessage>}
     {props.error && <ErrorMessage message={props.error} />}
-    {props.documents.length > 0 && <div className="document-workspace"><div className="workspace-toolbar"><h2>Extracted documents</h2><button className="text-button" onClick={props.onClear}>Clear workspace</button></div>{props.documents.map((document, index) => <ExtractedDocument key={document.document_id} document={document} warnings={props.warnings[document.document_id] ?? []} isNewest={index === props.documents.length - 1} onRemove={props.onRemove} onEvidence={props.onEvidence} />)}</div>}
+    {props.documents.length > 0 && <div className="document-workspace"><div className="workspace-toolbar"><h2>Extracted documents</h2><button className="text-button" onClick={props.onClear}>Clear workspace</button></div>{props.documents.map((document, index) => <ExtractedDocument key={document.document_id} document={document} warnings={props.warnings[document.document_id] ?? []} isNewest={index === props.documents.length - 1} onRemove={props.onRemove} onEvidence={props.onEvidence} />)}{props.liveConfigured && <div className="live-analysis-card"><h2>Analyze my documents</h2><p>AI analysis sends the extracted text to Anthropic. It is not automatic, and the result is for your review against your documents.</p><p className="upload-limit">For this initial workflow, include at least one denial and one retailer policy document.</p><button className="primary-button" onClick={props.onAnalyze} disabled={props.liveAnalyzing}>{props.liveAnalyzing ? "Analyzing documents..." : "Analyze my documents"}</button></div>}{props.liveAnalysis && <div className="live-analysis-result"><div className="live-label">AI-generated analysis — review against your documents</div><AnalysisView analysis={props.liveAnalysis} documents={props.documents} onEvidence={props.onEvidence} simulated={false} /></div>}</div>}
   </section>;
 }
 
@@ -254,7 +300,7 @@ function PassageCard({ document, passage, onEvidence }: { document: SourceDocume
   return <div className="passage-card"><p className="passage-meta">{passage.page_number ? `Page ${passage.page_number}` : "Extracted passage"}</p><p>{passage.text}</p><button className="evidence-button" onClick={() => onEvidence({ document, passage })}>View evidence</button></div>;
 }
 
-function AnalysisView({ analysis, documents, onEvidence }: { analysis: Analysis; documents: SourceDocument[]; onEvidence: (evidence: { document: SourceDocument; passage: Passage }) => void }) {
+function AnalysisView({ analysis, documents, onEvidence, simulated }: { analysis: Analysis; documents: SourceDocument[]; onEvidence: (evidence: { document: SourceDocument; passage: Passage }) => void; simulated: boolean }) {
   return <section className="analysis-result" aria-labelledby="analysis-title"><div className="simulated-label">Fictional example — simulated findings</div><div className={`assessment assessment-${analysis.assessment}`}><p className="eyebrow">Assessment</p><h2 id="analysis-title">{assessmentLabels[analysis.assessment]}</h2><p>{analysis.explanation}</p></div><AnalysisSection title="What the documents suggest"><div className="finding-list">{analysis.findings.map((finding, index) => <div className="finding" key={`${finding.statement}-${index}`}><span className={`classification classification-${finding.classification}`}>{finding.classification === "documented_fact" ? "Documented fact" : "Interpretation"}</span><p>{finding.statement}</p><CitationList sources={finding.sources} documents={documents} onEvidence={onEvidence} /></div>)}</div></AnalysisSection><AnalysisSection title="What supports your request"><ClauseList clauses={analysis.supporting_policy_clauses} documents={documents} onEvidence={onEvidence} empty="No supporting policy clause was identified in the supplied documents." /></AnalysisSection><AnalysisSection title="What could weaken your request"><ClauseList clauses={analysis.conflicting_policy_clauses} documents={documents} onEvidence={onEvidence} empty="No conflicting policy clause was identified in the supplied documents." /></AnalysisSection><AnalysisSection title="What information is missing">{analysis.missing_evidence.length ? <ul className="plain-list">{analysis.missing_evidence.map((item) => <li key={item.item}><strong>{item.item}</strong><span>{item.why_needed}</span></li>)}</ul> : <p className="muted">No additional evidence was identified by this fictional analysis.</p>}</AnalysisSection><AnalysisSection title="Questions to answer">{analysis.follow_up_questions.length ? <ul className="question-list">{analysis.follow_up_questions.map((question) => <li key={question}>{question}</li>)}</ul> : <p className="muted">No follow-up questions were identified.</p>}</AnalysisSection><AnalysisSection title="Deadline, if documented">{analysis.documented_deadline ? <div className="deadline"><p>{analysis.documented_deadline.description}</p><CitationList sources={[analysis.documented_deadline.source]} documents={documents} onEvidence={onEvidence} /></div> : <p className="muted">No deadline is documented in the supplied documents.</p>}</AnalysisSection></section>;
 }
 

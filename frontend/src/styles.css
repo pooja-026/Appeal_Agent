@@ -93,6 +93,11 @@ input[type="file"], input[type="text"], input:not([type]), select { width: 100%;
 .status-message { background: #e9f4f1; color: #236b63; }
 .error-message { background: #fff0ef; color: #9a3c34; }
 .document-workspace { margin-top: 35px; }
+.live-analysis-card { border: 1px solid #b9ddd7; border-radius: 12px; background: #f2fbf9; margin-top: 24px; padding: 20px; }
+.live-analysis-card h2 { font-size: 1.25rem; margin-bottom: 8px; }
+.live-analysis-card p { color: #405754; }
+.live-label { display: inline-block; border-radius: 999px; background: #e6efff; color: #244a7b; font-size: .78rem; font-weight: 800; letter-spacing: .04em; margin: 34px 0 15px; padding: 7px 11px; }
+.live-analysis-result .simulated-label { display: none; }
 .workspace-toolbar { align-items: baseline; display: flex; justify-content: space-between; }
 .workspace-toolbar h2 { font-size: 1.35rem; }
 .extracted-document { background: #fff; border: 1px solid #d9e0dc; border-radius: 10px; margin-bottom: 10px; padding: 0 16px; }

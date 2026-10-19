@@ -1,4 +1,6 @@
-"""HTTP routes for sample cases and deterministic local analysis."""
+"""HTTP routes for sample cases, local extraction, and explicitly gated analysis."""
+
+import inspect
 
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile, status
 
@@ -13,7 +15,12 @@ from .models import (
     DocumentType,
     SampleCaseSummary,
 )
-from .providers import MockAnalysisProvider, MockAnalysisUnavailable
+from .providers import (
+    AnalysisProviderError,
+    AnthropicAnalysisProvider,
+    MockAnalysisProvider,
+    MockAnalysisUnavailable,
+)
 from .references import InvalidSourceReference
 from .ingestion import ExtractionProblem
 
@@ -26,11 +33,16 @@ _SAMPLE_DESCRIPTIONS = {
 }
 
 
-def _provider() -> MockAnalysisProvider:
+def _mock_provider() -> MockAnalysisProvider:
     settings = get_settings()
-    if settings.ai_provider != "mock":
-        raise RuntimeError(f"Unsupported AI provider: {settings.ai_provider}")
     return MockAnalysisProvider(SAMPLE_CASES, EXPECTED_ANALYSES)
+
+
+async def _run_provider(provider: object, case: Case) -> Analysis:
+    result = provider.analyze(case)  # type: ignore[attr-defined]
+    if inspect.isawaitable(result):
+        return await result
+    return result
 
 
 @router.get("/sample-cases", response_model=list[SampleCaseSummary], tags=["samples"])
@@ -56,12 +68,47 @@ def get_sample_case(case_id: str) -> Case:
 @router.post("/analysis", response_model=Analysis, tags=["analysis"])
 def analyze_case(case: Case) -> Analysis:
     try:
-        return _provider().analyze(case)
+        return _mock_provider().analyze(case)
     except MockAnalysisUnavailable as exc:
         raise HTTPException(
             status_code=422,
             detail={"code": "mock_analysis_unavailable", "message": str(exc)},
         ) from exc
+
+
+@router.get("/analysis/config", tags=["analysis"])
+def analysis_config() -> dict[str, bool | str]:
+    """Expose only whether the backend has explicitly enabled live analysis."""
+
+    settings = get_settings()
+    live_configured = (
+        settings.ai_provider == "anthropic"
+        and bool(settings.anthropic_api_key)
+        and bool(settings.anthropic_model)
+    )
+    return {
+        "provider": settings.ai_provider,
+        "live_analysis_configured": live_configured,
+    }
+
+
+@router.post("/live-analysis", response_model=Analysis, tags=["analysis"])
+async def live_analyze_case(case: Case) -> Analysis:
+    """Analyze supplied documents with the configured live provider only."""
+
+    settings = get_settings()
+    if settings.ai_provider != "anthropic":
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={"code": "live_analysis_not_enabled", "message": "Live analysis is not enabled."},
+        )
+    try:
+        return await _run_provider(AnthropicAnalysisProvider(settings), case)
+    except AnalysisProviderError as exc:
+        raise HTTPException(
+            status_code=exc.status_code,
+            detail={"code": exc.code, "message": str(exc)},
+        ) from None
     except InvalidSourceReference as exc:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

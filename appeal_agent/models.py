@@ -148,6 +148,22 @@ class Analysis(BaseModel):
     documented_deadline: DocumentedDeadline | None = None
     provider: str = Field(min_length=1)
     simulated: bool
+    model: str | None = None
+
+
+class AnalysisContent(BaseModel):
+    """Model-generated fields, excluding application-owned metadata."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    findings: list[Finding]
+    supporting_policy_clauses: list[PolicyClause]
+    conflicting_policy_clauses: list[PolicyClause]
+    missing_evidence: list[MissingEvidence]
+    follow_up_questions: list[str]
+    assessment: Assessment
+    explanation: str = Field(min_length=1)
+    documented_deadline: DocumentedDeadline | None = None
 
 
 class SampleCaseSummary(BaseModel):

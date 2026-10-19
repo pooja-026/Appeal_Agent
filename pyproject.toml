@@ -12,6 +12,7 @@ license = { file = "LICENSE" }
 authors = [{ name = "Appeal Agent contributors" }]
 dependencies = [
     "fastapi>=0.115,<1",
+    "anthropic>=0.69,<1",
     "pydantic-settings>=2.7,<3",
     "pypdf>=6,<7",
     "python-multipart>=0.0.20,<1",

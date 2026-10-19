@@ -24,15 +24,16 @@ This milestone includes:
 - Pydantic schemas for cases, documents, passages, findings, policy clauses, missing evidence, assessments, deadlines, and source references.
 - Three clearly fictional authored sample cases with stable passage IDs.
 - Source documents stored separately from expected evaluation findings.
-- A vendor-neutral analysis-provider interface and deterministic `MockAnalysisProvider`.
+- A vendor-neutral analysis-provider interface, deterministic `MockAnalysisProvider`, and an explicitly configured `AnthropicAnalysisProvider`.
 - Source-reference validation for findings, policy clauses, and documented deadlines.
 - Local sample-case and analysis APIs.
 - Bounded local extraction for UTF-8 text and text-based PDFs, with stable source passages and page references.
 - A React/TypeScript/Vite frontend with separate fictional-sample and local-document review flows.
 - Typed frontend API integration through a local Vite proxy, evidence navigation, upload warnings, and in-memory session state.
-- Focused offline backend and frontend tests.
+- A live-analysis route that performs one bounded Anthropic Messages API request with structured JSON output, token counting, cost checks, and citation validation.
+- Focused offline backend and frontend tests using mocked SDK responses; no test makes a paid call.
 
-Analysis is currently simulated. The only supported configuration is `AI_PROVIDER=mock`; responses explicitly identify `provider="mock"` and `simulated=true`. The mock provider accepts only the unchanged authored sample cases and makes no external requests.
+Sample analysis remains simulated and always uses the mock provider. Uploaded documents can use Anthropic only when `AI_PROVIDER=anthropic`, `ANTHROPIC_API_KEY`, and an explicit `ANTHROPIC_MODEL` are configured. Live results explicitly identify `provider="anthropic"` and `simulated=false`; failures never fall back to fixture findings.
 
 ## Product boundaries
 
@@ -48,7 +49,7 @@ Analysis is currently simulated. The only supported configuration is `AI_PROVIDE
 
 ## Explicitly out of scope for this milestone
 
-- Live model providers or vendor SDKs.
+- Additional live model providers, model downloads, paid tools, prompt caching, and multi-model routing.
 - OCR or retrieval.
 - Appeal drafting.
 - Authentication, database, persistence, deployment, or cloud resources.
@@ -63,4 +64,8 @@ The 10 MiB upload, 30-page PDF, and 100,000-character extracted-text limits prev
 
 ## Next milestone
 
-Improve document ingestion and the review interface, then select and integrate a live model provider as a separate decision with explicit configuration and tests. Uploaded documents remain extraction-only until that provider boundary is deliberately extended.
+Improve document ingestion and the review interface, then add appeal drafting only after a user-reviewed analysis. A separately selected live provider may replace or supplement Anthropic later.
+
+## Anthropic integration limitations
+
+The live path sends extracted document text, document IDs, passage IDs, page numbers, and titles to Anthropic. The application asks for structured JSON and validates the returned Pydantic content and every source quotation. Quotation validation proves that a source and quotation exist in the submitted case; it does not prove semantic correctness or legal eligibility. The current provider does not enable extended/adaptive thinking, does not retry, and permits one live generation at a time. Token counting is performed before generation when supported by the SDK. Prepaid balance and account auto-reload settings remain account-level controls outside this application.

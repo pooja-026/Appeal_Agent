@@ -131,4 +131,73 @@ describe("Appeal Agent frontend", () => {
     await waitFor(() => expect(screen.queryByText("Fictional refund policy")).not.toBeInTheDocument());
     expect(screen.getByRole("heading", { name: secondCase.title })).toBeInTheDocument();
   });
+
+  it("distinguishes local extraction from explicitly enabled cloud analysis", async () => {
+    const extracted = {
+      document: {
+        document_id: "doc-cloud-gate",
+        document_type: "denial",
+        title: "Fictional denial",
+        passages: [{ passage_id: "cloud-p1", text: "Fictional denial text", page_number: null }],
+      },
+      metadata: { format: "txt", page_count: 1, character_count: 22, passage_count: 1 },
+      warnings: [],
+    };
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation((input) => {
+      const url = String(input);
+      if (url.endsWith("/analysis/config")) return jsonResponse({ provider: "anthropic", live_analysis_configured: true });
+      if (url.endsWith("/documents/extract")) return jsonResponse(extracted);
+      return jsonResponse({});
+    });
+
+    render(<App />);
+    fireEvent.click(screen.getByRole("button", { name: /review my documents/i }));
+    fireEvent.change(screen.getByLabelText(/document file/i), { target: { files: [new File(["fictional"], "denial.txt", { type: "text/plain" })] } });
+
+    expect(await screen.findByRole("heading", { name: /analyze my documents/i })).toBeInTheDocument();
+    expect(screen.getAllByText(/sends the extracted text to Anthropic/i).length).toBeGreaterThan(0);
+    expect(fetchSpy.mock.calls.some(([input]) => String(input).endsWith("/live-analysis"))).toBe(false);
+  });
+
+  it("submits both uploaded documents to live analysis and opens returned evidence", async () => {
+    const denial = {
+      document: { document_id: "live-denial", document_type: "denial", title: "Fictional denial", passages: [{ passage_id: "live-denial-p1", text: "The request was denied.", page_number: null }] },
+      metadata: { format: "txt", page_count: 1, character_count: 24, passage_count: 1 }, warnings: [],
+    };
+    const policy = {
+      document: { document_id: "live-policy", document_type: "policy", title: "Fictional policy", passages: [{ passage_id: "live-policy-p1", text: "Sale-priced damaged items are eligible for review.", page_number: null }] },
+      metadata: { format: "txt", page_count: 1, character_count: 51, passage_count: 1 }, warnings: [],
+    };
+    const liveResult = {
+      ...analysis,
+      case_id: "uploaded-local-session",
+      provider: "anthropic",
+      simulated: false,
+      model: "claude-sonnet-5-5",
+      findings: [{ classification: "documented_fact", statement: "The denial is documented.", sources: [{ document_id: "live-denial", passage_id: "live-denial-p1", quoted_text: "The request was denied." }] }],
+    };
+    let extractionCount = 0;
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation((input) => {
+      const url = String(input);
+      if (url.endsWith("/analysis/config")) return jsonResponse({ provider: "anthropic", live_analysis_configured: true });
+      if (url.endsWith("/documents/extract")) return jsonResponse(extractionCount++ === 0 ? denial : policy);
+      if (url.endsWith("/live-analysis")) return jsonResponse(liveResult);
+      return jsonResponse({});
+    });
+
+    render(<App />);
+    fireEvent.click(screen.getByRole("button", { name: /review my documents/i }));
+    const input = screen.getByLabelText(/document file/i);
+    fireEvent.change(input, { target: { files: [new File(["denial"], "denial.txt")] } });
+    await screen.findByText("Fictional denial");
+    fireEvent.change(screen.getByLabelText(/what is this/i), { target: { value: "policy" } });
+    fireEvent.change(input, { target: { files: [new File(["policy"], "policy.txt")] } });
+    await screen.findByText("Fictional policy");
+
+    fireEvent.click(screen.getByRole("button", { name: /analyze my documents/i }));
+    expect(await screen.findByText(/AI-generated analysis/i)).toBeInTheDocument();
+    expect(fetchSpy.mock.calls.some(([request]) => String(request).endsWith("/live-analysis"))).toBe(true);
+    fireEvent.click(screen.getAllByRole("button", { name: /view evidence/i }).at(-1)!);
+    expect(await screen.findByRole("dialog")).toHaveTextContent("The request was denied.");
+  });
 });

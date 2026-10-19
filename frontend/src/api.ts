@@ -68,6 +68,12 @@ export interface Analysis {
   documented_deadline: DocumentedDeadline | null;
   provider: string;
   simulated: boolean;
+  model: string | null;
+}
+
+export interface AnalysisConfig {
+  provider: string;
+  live_analysis_configured: boolean;
 }
 
 export interface ExtractionResponse {
@@ -108,6 +114,12 @@ export const api = {
   listSampleCases: () => request<SampleCaseSummary[]>("/sample-cases"),
   getSampleCase: (caseId: string) => request<Case>(`/sample-cases/${encodeURIComponent(caseId)}`),
   analyzeCase: (value: Case) => request<Analysis>("/analysis", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(value),
+  }),
+  getAnalysisConfig: () => request<AnalysisConfig>("/analysis/config"),
+  analyzeLive: (value: Case) => request<Analysis>("/live-analysis", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(value),

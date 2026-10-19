@@ -75,6 +75,29 @@ def test_nonexistent_reference_and_fabricated_quote_are_rejected() -> None:
             ),
         )
 
+
+def test_quote_validation_allows_whitespace_variants_but_not_joined_words() -> None:
+    case = get_sample_case("case-a-damaged-sale")
+
+    validate_source_reference(
+        case,
+        SourceReference(
+            document_id="a-policy",
+            passage_id="a-policy-p1",
+            quoted_text="including items\n\tpurchased at a sale price",
+        ),
+    )
+
+    with pytest.raises(InvalidSourceReference, match="not present"):
+        validate_source_reference(
+            case,
+            SourceReference(
+                document_id="a-policy",
+                passage_id="a-policy-p1",
+                quoted_text="including itemspurchased at a sale price",
+            ),
+        )
+
     bad_analysis = EXPECTED_ANALYSES["case-a-damaged-sale"].model_copy(deep=True)
     bad_analysis.supporting_policy_clauses[0].source.quoted_text = "fabricated clause"
     from appeal_agent.references import validate_analysis_references
